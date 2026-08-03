@@ -1168,19 +1168,34 @@ function cOpts(extra={}){return{responsive:true,maintainAspectRatio:false,plugin
 // ══════════════════════════════════════════════════════════
 // SALES
 // ══════════════════════════════════════════════════════════
+const _batchCache = {};
+function guessBatchRef(s) {
+  if(s.batchRef) return s.batchRef;
+  if(!s.cost || !s.qty) return null;
+  const cpu = s.cost / s.qty;
+  if(!_batchCache[s.cat]) _batchCache[s.cat] = getFIFOBatches(s.cat).batches;
+  const b = _batchCache[s.cat].find(x => Math.abs(x.costPerUnit - cpu) < 0.1);
+  return b ? b.id : null;
+}
+
 function getFiltered(){
   const q=$('search-input')?.value.toLowerCase()||'';
   const fCat=$('f-cat')?.value||'';const fPay=$('f-pay')?.value||'';
   const fFrom=$('f-from')?.value||'';const fTo=$('f-to')?.value||'';
   const fMinR=parseFloat($('f-minr')?.value)||0;const fMaxR=parseFloat($('f-maxr')?.value)||0;
   const fBatch=$('f-batch')?.value.toLowerCase()||'';
+  
+  // Clear cache before each filter pass to ensure fresh data
+  Object.keys(_batchCache).forEach(k=>delete _batchCache[k]);
+  
   return [...sales].filter(s=>{
     if(q&&!`${s.item} ${s.customer} ${s.cat}`.toLowerCase().includes(q))return false;
     if(fCat&&s.cat!==fCat)return false;if(fPay&&s.pay!==fPay)return false;
     if(fFrom&&s.date<fFrom)return false;if(fTo&&s.date>fTo)return false;
     if(fMinR&&(+s.rev||0)<fMinR)return false;if(fMaxR&&(+s.rev||0)>fMaxR)return false;
     if(fBatch){
-      const b=costsData.find(c=>c.id===s.batchRef);
+      const bRef = guessBatchRef(s);
+      const b=costsData.find(c=>c.id===bRef);
       const bLabel = b ? (b.batchNum ? 'b'+b.batchNum : (b.notes||'')).toLowerCase() : '';
       if(!bLabel.includes(fBatch) && !s.item.toLowerCase().includes(fBatch)) return false;
     }
@@ -1221,10 +1236,11 @@ function renderSales(){
   $('table-body').innerHTML=filtered.map((s,i)=>{
     const p=profit(s);
     const catCol=getCatColor(s.cat);
+    const badgeBatchRef = guessBatchRef(s);
     return `<tr style="animation:fadeUp .15s ${i*.025}s both;cursor:context-menu" oncontextmenu="showCtxMenu(event,'sale','${s.id}',${s._row||0})">
       <td class="sl-cell">${i+1}</td>
       <td class="num-cell" style="font-size:11px;color:var(--teal);letter-spacing:.5px;white-space:nowrap">${escH(s.order_id)||'<span style="color:var(--text3)">—</span>'}</td>
-      <td style="font-weight:500;white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis">${escH(s.item)}${s.batchRef?renderBatchBadge(s.batchRef):''}</td>
+      <td style="font-weight:500;white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis">${escH(s.item)}${badgeBatchRef?renderBatchBadge(badgeBatchRef):''}</td>
       <td><span class="cell-cat" style="color:${catCol}">${escH(s.cat)}</span></td>
       <td style="color:${s.customer?'var(--text)':'var(--text3)'}">${escH(s.customer)||'—'}</td>
       <td class="num-cell" style="text-align:center;color:var(--text2)">${s.qty}</td>
