@@ -1353,7 +1353,12 @@ async function saveSale(){
   }else{
     orderId=generateOrderId(saleDate);
   }
-  const entry={id:editId||uid(),order_id:orderId,item,cat:$('f-catf').value,customer:$('f-cust').value.trim(),qty:+$('f-qty').value||1,date:saleDate,rev:+$('f-rev').value||0,cost:+$('f-cost').value||0,due:dueAmt,disc:+$('f-disc').value||0,pay:payStatus,ord:$('f-ord-f').value,notes:$('f-notes').value.trim(),batchRef:$('f-batchref')?.value||''};
+  let batchRef = $('f-batchref')?.value || '';
+  if (!batchRef) {
+    const {batch} = getFIFOCostForSale($('f-catf').value, +$('f-qty').value||1);
+    if (batch) batchRef = batch.id;
+  }
+  const entry={id:editId||uid(),order_id:orderId,item,cat:$('f-catf').value,customer:$('f-cust').value.trim(),qty:+$('f-qty').value||1,date:saleDate,rev:+$('f-rev').value||0,cost:+$('f-cost').value||0,due:dueAmt,disc:+$('f-disc').value||0,pay:payStatus,ord:$('f-ord-f').value,notes:$('f-notes').value.trim(),batchRef};
   const btn=$('btn-save-sale');btn.disabled=true;showSync(true);closeModal('m-sale');
   try{
     if(editId){const ex=sales.find(s=>s.id===editId);entry._row=ex._row;await updateRow(SALES_TAB,entry._row,SALE_HEADERS,entry);await fetchSales();toast('Sale updated ✦','success');}
