@@ -1174,7 +1174,8 @@ function guessBatchRef(s) {
   if(!s.cost || !s.qty) return null;
   const cpu = s.cost / s.qty;
   if(!_batchCache[s.cat]) _batchCache[s.cat] = getFIFOBatches(s.cat).batches;
-  const b = _batchCache[s.cat].find(x => Math.abs(x.costPerUnit - cpu) < 0.1);
+  let b = _batchCache[s.cat].find(x => Math.abs(x.costPerUnit - cpu) < 1.1 || Math.abs(x.origCpu - cpu) < 1.1);
+  if(!b && _batchCache[s.cat].length === 1) b = _batchCache[s.cat][0];
   return b ? b.id : null;
 }
 
