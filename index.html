@@ -140,7 +140,7 @@ input,select,textarea{font-family:'DM Sans',sans-serif;outline:none}
 .search-input:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-dim)}
 .search-input::placeholder{color:var(--text3)}
 .filter-row{display:flex;gap:10px;align-items:center}
-.filter-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:12px}
+.filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:12px}
 .filter-select,.filter-input{background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;width:100%;transition:.2s;cursor:pointer}
 .filter-select:focus,.filter-input:focus{border-color:var(--gold);outline:none}
 .filter-input::placeholder{color:var(--text3)}
@@ -494,6 +494,7 @@ tr:hover .row-actions{opacity:1}
             <input class="filter-input" type="date" id="f-to" onchange="applyFilters()">
             <input class="filter-input" type="number" id="f-minr" placeholder="Min ৳" onchange="applyFilters()">
             <input class="filter-input" type="number" id="f-maxr" placeholder="Max ৳" onchange="applyFilters()">
+            <input class="filter-input" type="text" id="f-batch" placeholder="Batch / Item" oninput="applyFilters()">
           </div>
         </div>
         <div class="summary-bar" id="summary-bar"></div>
@@ -767,7 +768,7 @@ const COST_HEADERS  = ['id','item','cat','qty','totalCost','date','notes','type'
 const SALES_TAB = 'Sales';
 const COSTS_TAB = 'Costs';
 const uid  = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-const fmt  = n => '৳' + Number(n||0).toLocaleString('en-IN');
+const fmt  = n => '৳' + Number(n||0).toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 2});
 const pct  = (a,b) => b ? Math.round(a/b*100)+'%' : '0%';
 const profit = s => (parseFloat(s.rev)||0) - (parseFloat(s.cost)||0);
 const $    = id => document.getElementById(id);
@@ -1172,11 +1173,17 @@ function getFiltered(){
   const fCat=$('f-cat')?.value||'';const fPay=$('f-pay')?.value||'';
   const fFrom=$('f-from')?.value||'';const fTo=$('f-to')?.value||'';
   const fMinR=parseFloat($('f-minr')?.value)||0;const fMaxR=parseFloat($('f-maxr')?.value)||0;
+  const fBatch=$('f-batch')?.value.toLowerCase()||'';
   return [...sales].filter(s=>{
     if(q&&!`${s.item} ${s.customer} ${s.cat}`.toLowerCase().includes(q))return false;
     if(fCat&&s.cat!==fCat)return false;if(fPay&&s.pay!==fPay)return false;
     if(fFrom&&s.date<fFrom)return false;if(fTo&&s.date>fTo)return false;
     if(fMinR&&(+s.rev||0)<fMinR)return false;if(fMaxR&&(+s.rev||0)>fMaxR)return false;
+    if(fBatch){
+      const b=costsData.find(c=>c.id===s.batchRef);
+      const bLabel = b ? (b.batchNum ? 'b'+b.batchNum : (b.notes||'')).toLowerCase() : '';
+      if(!bLabel.includes(fBatch) && !s.item.toLowerCase().includes(fBatch)) return false;
+    }
     return true;
   }).sort((a,b)=>{
     const col=sortState.col;let av,bv;
@@ -1240,12 +1247,12 @@ function renderSales(){
 function toggleSort(col){if(sortState.col===col)sortState.dir=sortState.dir==='asc'?'desc':'asc';else{sortState.col=col;sortState.dir='desc';}renderSales();}
 function toggleFilters(){filterOpen=!filterOpen;$('filter-grid').style.display=filterOpen?'grid':'none';$('btn-filter-toggle').classList.toggle('active',filterOpen);}
 function applyFilters(){
-  const count=['f-cat','f-pay','f-from','f-to','f-minr','f-maxr'].filter(id=>$(id)?.value).length+($('search-input')?.value?1:0);
+  const count=['f-cat','f-pay','f-from','f-to','f-minr','f-maxr','f-batch'].filter(id=>$(id)?.value).length+($('search-input')?.value?1:0);
   const badge=$('filter-badge');badge.style.display=count?'flex':'none';badge.textContent=count;
   $('btn-filter-toggle').classList.toggle('active',count>0||filterOpen);
   $('btn-clear-filters').style.display=count?'flex':'none';renderSales();
 }
-function clearFilters(){['f-cat','f-pay','f-from','f-to','f-minr','f-maxr'].forEach(id=>{if($(id))$(id).value='';});if($('search-input'))$('search-input').value='';applyFilters();}
+function clearFilters(){['f-cat','f-pay','f-from','f-to','f-minr','f-maxr','f-batch'].forEach(id=>{if($(id))$(id).value='';});if($('search-input'))$('search-input').value='';applyFilters();}
 
 // ══════════════════════════════════════════════════════════
 // ADD / EDIT SALE
@@ -1284,7 +1291,7 @@ function onSaleBatchChange(){
   const qty=+$('f-qty')?.value||1;
   const effQty=Math.max(0,(+batch.qty||1)-(+batch.missingFromBox||0));
   const effCost=Math.max(0,(+batch.totalCost||0)-(+batch.refundReceived||0));
-  const cpu=effQty?Math.round(effCost/effQty):0;
+  const cpu=effQty?(effCost/effQty):0;
   $('f-cost').value=cpu*qty;
   const hint=$('f-cost-hint');
   if(hint){const bn=batch.batchNum?('Batch '+batch.batchNum):(batch.notes||'');hint.textContent='Manual batch'+(bn?' · '+bn:'');}
@@ -1309,7 +1316,7 @@ function getFIFOCostForSale(cat,qty){
     remaining-=take;
     if(remaining<=0)break;
   }
-  const cpu=qty?Math.round(totalCost/qty):0;
+  const cpu=qty?(totalCost/qty):0;
   return{total:totalCost,cpu,batch:firstBatch};
 }
 function autoFillSaleCost(){
@@ -1337,7 +1344,7 @@ async function saveSale(){
   let payStatus=$('f-pay-f').value;
   let dueAmt=+$('f-due').value||0;
   if(payStatus==='Paid' && dueAmt>0){toast('Cannot mark Paid with Due > 0','error');return;}
-  const saleDate=$('f-date').value;
+  const saleDate=$('f-date').value || today();
   let orderId='';
   if(editId){
     // Preserve existing order_id on edit
@@ -1349,7 +1356,7 @@ async function saveSale(){
   const entry={id:editId||uid(),order_id:orderId,item,cat:$('f-catf').value,customer:$('f-cust').value.trim(),qty:+$('f-qty').value||1,date:saleDate,rev:+$('f-rev').value||0,cost:+$('f-cost').value||0,due:dueAmt,disc:+$('f-disc').value||0,pay:payStatus,ord:$('f-ord-f').value,notes:$('f-notes').value.trim(),batchRef:$('f-batchref')?.value||''};
   const btn=$('btn-save-sale');btn.disabled=true;showSync(true);closeModal('m-sale');
   try{
-    if(editId){const ex=sales.find(s=>s.id===editId);entry._row=ex._row;await updateRow(SALES_TAB,entry._row,SALE_HEADERS,entry);const i=sales.findIndex(s=>s.id===editId);sales[i]=entry;toast('Sale updated ✦','success');}
+    if(editId){const ex=sales.find(s=>s.id===editId);entry._row=ex._row;await updateRow(SALES_TAB,entry._row,SALE_HEADERS,entry);await fetchSales();toast('Sale updated ✦','success');}
     else{await appendRow(SALES_TAB,SALE_HEADERS,entry);await fetchSales();toast('Sale added ✦','success');}
     renderCurrentPage();
   }catch(e){toast('Save failed: '+e.message,'error');}
@@ -1450,7 +1457,7 @@ async function saveCost(){
   const entry={id:editCostId||uid(),item,cat:$('cf-cat').value,qty:+$('cf-qty').value||1,totalCost:type==='missing'?0:(+$('cf-total').value||0),date:$('cf-date').value,notes:$('cf-notes').value.trim(),type,missingFromBox:type==='purchase'?(+$('cf-box-missing').value||0):0,refundReceived:type==='purchase'?(+$('cf-refund-amt').value||0):0,batchNum};
   const btn=$('btn-save-cost');btn.disabled=true;showSync(true);closeModal('m-cost');
   try{
-    if(editCostId){const ex=costsData.find(c=>c.id===editCostId);entry._row=ex._row;await updateRow(COSTS_TAB,entry._row,COST_HEADERS,entry);const i=costsData.findIndex(c=>c.id===editCostId);costsData[i]=entry;toast('Shipment updated','success');}
+    if(editCostId){const ex=costsData.find(c=>c.id===editCostId);entry._row=ex._row;await updateRow(COSTS_TAB,entry._row,COST_HEADERS,entry);await fetchCosts();toast('Shipment updated','success');}
     else{await appendRow(COSTS_TAB,COST_HEADERS,entry);await fetchCosts();toast('Shipment added','success');}
     renderCurrentPage();
   }catch(e){toast('Save failed: '+e.message,'error');}
@@ -1557,22 +1564,56 @@ function getFIFOBatches(cat){
   const purchases=costsData.filter(c=>c.cat===cat&&(c.type||'purchase')==='purchase').sort((a,b)=>a.date.localeCompare(b.date));
   const refunds=costsData.filter(c=>c.cat===cat&&c.type==='refund');
   const missing=costsData.filter(c=>c.cat===cat&&c.type==='missing');
-  const soldQty=sales.filter(s=>s.cat===cat&&s.ord!=='Cancelled').reduce((a,s)=>a+(+s.qty||0),0);
+  const catSales=sales.filter(s=>s.cat===cat&&s.ord!=='Cancelled');
+  const soldQty=catSales.reduce((a,s)=>a+(+s.qty||0),0);
   const refundedQty=refunds.reduce((a,c)=>a+(+c.qty||0),0);
   const missingQty=missing.reduce((a,c)=>a+(+c.qty||0),0);
-  let toDeduct=soldQty+refundedQty+missingQty;
+
+  // Build batch objects first (before deduction)
   const batches=purchases.map(b=>{
     const orderedQty=+b.qty||0;
     const missingFromBox=+b.missingFromBox||0;
     const refundReceived=+b.refundReceived||0;
     const effQty=Math.max(0,orderedQty-missingFromBox);
     const effCost=Math.max(0,(+b.totalCost||0)-refundReceived);
-    const used=Math.min(toDeduct,effQty);
-    toDeduct=Math.max(0,toDeduct-effQty);
     const origCpu=orderedQty?(+b.totalCost/orderedQty):0;
-    const costPerUnit=effQty?Math.round(effCost/effQty):0;
-    return{...b,originalQty:orderedQty,effQty,effCost,usedQty:used,remainingQty:effQty-used,costPerUnit,origCpu:Math.round(origCpu),hasAdjust:missingFromBox>0||refundReceived>0};
+    const costPerUnit=effQty?(effCost/effQty):0;
+    return{...b,originalQty:orderedQty,effQty,effCost,usedQty:0,remainingQty:effQty,costPerUnit,origCpu,hasAdjust:missingFromBox>0||refundReceived>0};
   });
+
+  // PASS 1: Deduct sales with explicit batchRef from their specified batch
+  const unassignedQty={sale:0}; // track qty from sales without batchRef
+  catSales.forEach(s=>{
+    const qty=+s.qty||0;
+    if(s.batchRef){
+      const targetBatch=batches.find(b=>b.id===s.batchRef);
+      if(targetBatch){
+        const take=Math.min(qty,targetBatch.remainingQty);
+        targetBatch.usedQty+=take;
+        targetBatch.remainingQty-=take;
+        // If sale qty exceeds batch remaining, spill remainder to FIFO
+        if(take<qty) unassignedQty.sale+=(qty-take);
+      } else {
+        // batchRef points to a deleted/unknown batch — treat as unassigned
+        unassignedQty.sale+=qty;
+      }
+    } else {
+      unassignedQty.sale+=qty;
+    }
+  });
+
+  // PASS 2: Deduct unassigned sales + refunds + missing via FIFO (oldest first)
+  let toDeduct=unassignedQty.sale+refundedQty+missingQty;
+  for(const b of batches){
+    if(toDeduct<=0)break;
+    const canTake=b.remainingQty;
+    if(canTake<=0)continue;
+    const take=Math.min(toDeduct,canTake);
+    b.usedQty+=take;
+    b.remainingQty-=take;
+    toDeduct-=take;
+  }
+
   return{batches,refunds,missing,soldQty,refundedQty,missingQty,
     totalBought:batches.reduce((a,b)=>a+b.effQty,0),
     totalRemaining:batches.reduce((a,b)=>a+b.remainingQty,0)};
@@ -1768,8 +1809,8 @@ function renderCosts(){
     const t=c.type||'purchase';
     const effQty=Math.max(0,(+c.qty||0)-(+c.missingFromBox||0));
     const effCost=Math.max(0,(+c.totalCost||0)-(+c.refundReceived||0));
-    const cpu=t==='missing'?0:(effQty?Math.round(effCost/effQty):0);
-    const origCpu=t==='purchase'&&c.qty?Math.round(c.totalCost/c.qty):0;
+    const cpu=t==='missing'?0:(effQty?(effCost/effQty):0);
+    const origCpu=t==='purchase'&&c.qty?(c.totalCost/c.qty):0;
     const hasAdj=t==='purchase'&&((+c.missingFromBox||0)>0||(+c.refundReceived||0)>0);
     const cpuDisplay=hasAdj?`<div style="color:var(--blue);font-size:12px">${fmt(cpu)}</div><div style="color:var(--text3);font-size:10px;text-decoration:line-through">${fmt(origCpu)}</div>`:(cpu?fmt(cpu):'—');
     const qtyDisplay=t!=='purchase'?`<span style="color:var(--amber)">-${c.qty}</span>`:(hasAdj?`${effQty} <span style="color:var(--text3);font-size:10px">of ${c.qty}</span>`:c.qty);
@@ -1913,7 +1954,7 @@ function exportPDF(){
   const totalProfit=validSales.reduce((a,s)=>a+profit(s),0);
   const totalDue=validSales.reduce((a,s)=>a+(+s.due||0),0);
   const totalInvested=costsData.filter(c=>(c.type||'purchase')==='purchase').reduce((a,c)=>a+Math.max(0,(+c.totalCost||0)-(+c.refundReceived||0)),0) - costsData.filter(c=>c.type==='refund').reduce((a,c)=>a+(+c.totalCost||0),0);
-  const fmtN=n=>'৳'+Number(n||0).toLocaleString('en-IN');
+  const fmtN=n=>'৳'+Number(n||0).toLocaleString('en-IN', {minimumFractionDigits: 0, maximumFractionDigits: 2});
   const w=window.open('','_blank');
   w.document.write(`<!DOCTYPE html><html><head><title>BMS Report</title><style>
     *{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',sans-serif;color:#1a1a2e;background:#fff;padding:32px;font-size:13px}
@@ -1952,7 +1993,7 @@ function exportPDF(){
     </tr>`).join('')}</tbody></table>
     <h2>Purchase Shipments</h2>
     <table><thead><tr><th>#</th><th>Item</th><th>Type</th><th>Category</th><th>Qty</th><th>Total Cost</th><th>Cost/Unit</th><th>Date</th><th>Notes</th></tr></thead>
-    <tbody>${costsData.map((c,i)=>{const effQty=Math.max(0,(+c.qty||0)-(+c.missingFromBox||0));const effCost=Math.max(0,(+c.totalCost||0)-(+c.refundReceived||0));const cpu=c.type==='missing'?0:(effQty?Math.round(effCost/effQty):0);return`<tr>
+    <tbody>${costsData.map((c,i)=>{const effQty=Math.max(0,(+c.qty||0)-(+c.missingFromBox||0));const effCost=Math.max(0,(+c.totalCost||0)-(+c.refundReceived||0));const cpu=c.type==='missing'?0:(effQty?(effCost/effQty):0);return`<tr>
       <td style="color:#999">${i+1}</td><td><strong>${escH(c.item)}</strong></td><td>${c.type||'purchase'}</td>
       <td>${escH(c.cat)}</td><td>${c.qty}</td><td class="red">${fmtN(c.totalCost)}</td>
       <td>${cpu?fmtN(cpu):'—'}</td><td style="color:#666">${c.date}</td><td>${escH(c.notes)||'—'}</td>
