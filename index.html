@@ -1272,15 +1272,15 @@ function setSaleForm(s){
 function populateSaleBatchDropdown(cat, selectedBatchRef=''){
   const sel=$('f-batchref');if(!sel)return;
   const {batches}=getFIFOBatches(cat||'');
-  const available=batches.filter(b=>b.remainingQty>0||(selectedBatchRef&&b.id===selectedBatchRef));
   sel.innerHTML=`<option value="">&#x26A1; FIFO Auto (oldest stock first)</option>`
-    + available.map(b=>{
+    + batches.map(b=>{
       const label=b.batchNum?`Batch ${b.batchNum}`:(b.notes||b.item||'Unknown batch');
-      return `<option value="${b.id}">${label} — ${b.remainingQty} left @ ${fmt(b.costPerUnit)}/unit · ${b.date}</option>`;
+      const emptyTag = b.remainingQty<=0 ? ' [Empty]' : '';
+      return `<option value="${b.id}">${label}${emptyTag} — ${b.remainingQty} left @ ${fmt(b.costPerUnit)}/unit · ${b.date}</option>`;
     }).join('');
   sel.value=selectedBatchRef||'';
   const wrap=$('f-batch-wrap');
-  if(wrap) wrap.style.display=(cat&&cat!=='Other')&&available.length?'':'none';
+  if(wrap) wrap.style.display=(cat&&cat!=='Other')&&batches.length?'':'none';
 }
 // When user manually picks a batch → override cost
 function onSaleBatchChange(){
