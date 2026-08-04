@@ -583,15 +583,15 @@ tr:hover .row-actions{opacity:1}
       <div id="page-finances" style="display:none">
         <div class="costs-kpi-grid">
           <div class="kpi-card" style="--kpi-color:var(--gold);--accent-bg:var(--gold-dim)">
-            <div class="kpi-label">Cash In Hand</div><div class="kpi-value" id="fin-kpi-cash">৳0</div><div class="kpi-sub">Total collected minus total spent</div>
+            <div class="kpi-label">Cash In Hand</div><div class="kpi-value" id="fin-kpi-cash">৳0</div><div class="kpi-sub">Revenue collected minus business expenses</div>
             <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg></div>
           </div>
           <div class="kpi-card" style="--kpi-color:var(--green);--accent-bg:var(--green-dim)">
-            <div class="kpi-label">Total Cash Collected</div><div class="kpi-value" id="fin-kpi-in">৳0</div><div class="kpi-sub">Excludes unpaid dues</div>
+            <div class="kpi-label">Total Cash Collected</div><div class="kpi-value" id="fin-kpi-in">৳0</div><div class="kpi-sub">Revenue received — unpaid dues excluded</div>
             <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><line x1="17" y1="6" x2="23" y2="6"/><line x1="23" y1="6" x2="23" y2="12"/></svg></div>
           </div>
           <div class="kpi-card" style="--kpi-color:var(--red);--accent-bg:var(--red-dim)">
-            <div class="kpi-label">Total Cash Spent</div><div class="kpi-value" id="fin-kpi-out">৳0</div><div class="kpi-sub">Shipments and business expenses</div>
+            <div class="kpi-label">Total Cash Spent</div><div class="kpi-value" id="fin-kpi-out">৳0</div><div class="kpi-sub">Manual expenses only — not inventory costs</div>
             <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><line x1="17" y1="18" x2="23" y2="18"/><line x1="23" y1="18" x2="23" y2="12"/></svg></div>
           </div>
         </div>
@@ -1556,12 +1556,12 @@ async function saveCost(){
 // FINANCES & EXPENSES
 // ══════════════════════════════════════════════════════════
 function renderFinances(){
-  // Cash collected = revenue minus outstanding dues (actual cash received)
+  // Cash collected = total revenue minus outstanding dues (actual cash received in hand)
   const cashIn = sales.filter(s=>s.ord!=='Cancelled').reduce((a,s)=>a+((+s.rev||0)-(+s.due||0)),0);
-  // Cash out = shipment costs (net of refunds) + all expenses
-  const shipmentCash = costsData.filter(c=>(c.type||'purchase')==='purchase').reduce((a,c)=>a+Math.max(0,(+c.totalCost||0)-(+c.refundReceived||0)),0);
-  const expenseCash  = costsData.filter(c=>c.type==='expense').reduce((a,c)=>a+(+c.totalCost||0),0);
-  const cashOut = shipmentCash + expenseCash;
+  // Cash out = ONLY manually registered business expenses (packaging, rent, transport, etc.)
+  // Inventory/shipment purchases are NOT subtracted here — they're already tracked via profit margin on the Sales page
+  const expenseCash = costsData.filter(c=>c.type==='expense').reduce((a,c)=>a+(+c.totalCost||0),0);
+  const cashOut = expenseCash;
   const cashInHand = cashIn - cashOut;
 
   const setCash = (id,v)=>{ const el=$(id); if(el) el.textContent=fmt(v); };
