@@ -367,6 +367,11 @@ tr:hover .row-actions{opacity:1}
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
         Costs &amp; Shipments
       </button>
+      <div class="nav-section-label" style="margin-top:8px">Finances</div>
+      <button class="nav-btn" onclick="nav('finances')" id="nav-finances">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Cash &amp; Expenses
+      </button>
     </nav>
     <div class="sidebar-footer">
       <div class="conn-status">
@@ -398,6 +403,9 @@ tr:hover .row-actions{opacity:1}
         </button>
         <button class="btn-add" id="btn-add-cost" onclick="openAddCost()" style="display:none">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Shipment
+        </button>
+        <button class="btn-add" id="btn-add-expense" onclick="openAddExpense()" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Expense
         </button>
       </div>
     </div>
@@ -571,6 +579,35 @@ tr:hover .row-actions{opacity:1}
         </div>
       </div>
 
+      <!-- FINANCES -->
+      <div id="page-finances" style="display:none">
+        <div class="costs-kpi-grid">
+          <div class="kpi-card" style="--kpi-color:var(--gold);--accent-bg:var(--gold-dim)">
+            <div class="kpi-label">Cash In Hand</div><div class="kpi-value" id="fin-kpi-cash">৳0</div><div class="kpi-sub">Total collected minus total spent</div>
+            <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg></div>
+          </div>
+          <div class="kpi-card" style="--kpi-color:var(--green);--accent-bg:var(--green-dim)">
+            <div class="kpi-label">Total Cash Collected</div><div class="kpi-value" id="fin-kpi-in">৳0</div><div class="kpi-sub">Excludes unpaid dues</div>
+            <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><line x1="17" y1="6" x2="23" y2="6"/><line x1="23" y1="6" x2="23" y2="12"/></svg></div>
+          </div>
+          <div class="kpi-card" style="--kpi-color:var(--red);--accent-bg:var(--red-dim)">
+            <div class="kpi-label">Total Cash Spent</div><div class="kpi-value" id="fin-kpi-out">৳0</div><div class="kpi-sub">Shipments and business expenses</div>
+            <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><line x1="17" y1="18" x2="23" y2="18"/><line x1="23" y1="18" x2="23" y2="12"/></svg></div>
+          </div>
+        </div>
+        <div class="table-card">
+          <div style="padding:16px 18px;border-bottom:1px solid var(--border)">
+            <div style="font-family:'Cinzel',serif;font-size:13px;color:var(--text2);letter-spacing:.5px;text-transform:uppercase">Business Expenses</div>
+          </div>
+          <div class="table-scroll">
+            <table><thead><tr>
+              <th class="no-sort" style="width:36px">#</th>
+              <th class="no-sort">Date</th><th class="no-sort">Expense Title</th><th class="no-sort">Category</th><th class="no-sort">Amount Spent</th><th class="no-sort">Notes</th><th class="no-sort"></th>
+            </tr></thead><tbody id="expense-table-body"></tbody></table>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -629,6 +666,7 @@ tr:hover .row-actions{opacity:1}
           <option value="purchase">Purchase (Stock In)</option>
           <option value="refund">Refund (Returned to Supplier)</option>
           <option value="missing">Missing / Lost Stock</option>
+          <option value="expense">Business Expense (Cash Out)</option>
         </select>
       </div>
       <div><label class="field-label">Category</label><select class="field-input" id="cf-cat" style="cursor:pointer" onchange="onCostCatChange()"></select></div>
@@ -1070,11 +1108,14 @@ function nav(pg){
   currentPage=pg;
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   $(`nav-${pg}`)?.classList.add('active');
-  ['dashboard','sales','customers','costs'].forEach(p=>{$(p===pg?`page-${p}`:`page-${p}`).style.display=p===pg?'':'none';});
-  const titles={dashboard:'Dashboard',sales:'Sales <span>Records</span>',customers:'Customers',costs:'Costs &amp; <span>Shipments</span>'};
-  $('topbar-title').innerHTML=titles[pg];
+  ['dashboard','sales','customers','costs','finances'].forEach(p=>{
+    const el=$(`page-${p}`);if(el)el.style.display=p===pg?'':'none';
+  });
+  const titles={dashboard:'Dashboard',sales:'Sales <span>Records</span>',customers:'Customers',costs:'Costs &amp; <span>Shipments</span>',finances:'Cash &amp; <span>Expenses</span>'};
+  $('topbar-title').innerHTML=titles[pg]||pg;
   $('btn-add-sale').style.display=pg==='sales'?'flex':'none';
   $('btn-add-cost').style.display=pg==='costs'?'flex':'none';
+  const expBtn=$('btn-add-expense');if(expBtn)expBtn.style.display=pg==='finances'?'flex':'none';
   renderCurrentPage();
 }
 
@@ -1083,6 +1124,7 @@ function renderCurrentPage(){
   else if(currentPage==='sales') renderSales();
   else if(currentPage==='customers') renderCustomers();
   else if(currentPage==='costs') renderCosts();
+  else if(currentPage==='finances') renderFinances();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1423,12 +1465,29 @@ function onCostCatChange(){
 function updateCostPreview(){
   const type=$('cf-type')?.value||'purchase';
   const isPurchase=type==='purchase';
+  const isExpense=type==='expense';
   const totalInput=$('cf-total');
   const lbl=$('cf-cost-label');
 
   // Show/hide purchase-only adjustment fields
+  $('cf-qty').parentElement.style.display=isExpense?'none':'';
+  $('cf-batch-wrap').style.display=isExpense?'none':'';
   $('cf-box-missing-wrap').style.display=isPurchase?'':'none';
   $('cf-refund-amt-wrap').style.display=isPurchase?'':'none';
+
+  if(isExpense){
+    // For expenses: just show the amount entered, no per-unit math needed
+    const pr=$('cost-preview');
+    const amt=+totalInput.value||0;
+    if(amt>0){
+      pr.style.display='flex';
+      $('cost-preview-val').textContent=fmt(amt)+' out of pocket';
+      $('cost-preview-val').style.color='var(--red)';
+      $('cost-preview-old-wrap').style.display='none';
+      $('cost-preview-extra').innerHTML='';
+    }else{pr.style.display='none';}
+    return;
+  }
 
   // Handle missing type: lock cost at 0
   if(type==='missing'){
@@ -1491,6 +1550,52 @@ async function saveCost(){
     renderCurrentPage();
   }catch(e){toast('Save failed: '+e.message,'error');}
   btn.disabled=false;showSync(false);
+}
+
+// ══════════════════════════════════════════════════════════
+// FINANCES & EXPENSES
+// ══════════════════════════════════════════════════════════
+function renderFinances(){
+  // Cash collected = revenue minus outstanding dues (actual cash received)
+  const cashIn = sales.filter(s=>s.ord!=='Cancelled').reduce((a,s)=>a+((+s.rev||0)-(+s.due||0)),0);
+  // Cash out = shipment costs (net of refunds) + all expenses
+  const shipmentCash = costsData.filter(c=>(c.type||'purchase')==='purchase').reduce((a,c)=>a+Math.max(0,(+c.totalCost||0)-(+c.refundReceived||0)),0);
+  const expenseCash  = costsData.filter(c=>c.type==='expense').reduce((a,c)=>a+(+c.totalCost||0),0);
+  const cashOut = shipmentCash + expenseCash;
+  const cashInHand = cashIn - cashOut;
+
+  const setCash = (id,v)=>{ const el=$(id); if(el) el.textContent=fmt(v); };
+  setCash('fin-kpi-cash', cashInHand);
+  setCash('fin-kpi-in',   cashIn);
+  setCash('fin-kpi-out',  cashOut);
+
+  const expenseEl=$('expense-table-body');
+  if(!expenseEl) return;
+  const expenses = costsData.filter(c=>c.type==='expense').sort((a,b)=>b.date.localeCompare(a.date));
+  if(!expenses.length){
+    expenseEl.innerHTML=`<tr class="empty-row"><td colspan="7"><div class="empty-icon">◇</div><div class="empty-text">No expenses recorded</div><div class="empty-sub">Click "+ Add Expense" to track your spending</div></td></tr>`;
+    return;
+  }
+  expenseEl.innerHTML=expenses.map((c,i)=>`<tr style="animation:fadeUp .15s ${i*.025}s both">
+    <td class="sl-cell">${i+1}</td>
+    <td class="num-cell" style="color:var(--text2);font-size:12px">${c.date}</td>
+    <td style="font-weight:500">${escH(c.item)}</td>
+    <td><span class="cell-cat" style="color:var(--red)">${escH(c.cat)}</span></td>
+    <td class="num-cell num-red">${fmt(c.totalCost)}</td>
+    <td style="color:var(--text2);font-size:12px;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(c.notes)||'—'}</td>
+    <td><div class="row-actions">
+      <button class="row-btn row-btn-edit" onclick="openEditCost('${c.id}')" title="Edit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+      <button class="row-btn row-btn-del" onclick="confirmDel('${c.id}',${c._row||0},'cost')" title="Delete"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg></button>
+    </div></td>
+  </tr>`).join('');
+}
+
+function openAddExpense(){
+  editCostId=null;
+  $('cost-modal-title').textContent='Add Expense';
+  $('btn-save-cost').textContent='Save Expense';
+  setCostForm({type:'expense',cat:'Other',qty:1,date:today()});
+  openModal('m-cost');
 }
 
 // ══════════════════════════════════════════════════════════
